@@ -1,0 +1,858 @@
+<meta charset="utf-8">
+<title>Численность службы снабжения — расчётная модель</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --ink:#16202E; --navy:#1F3864; --navy-soft:#E7ECF5;
+  --paper:#FBFAF7; --panel:#FFFFFF; --rule:#D8DEE7; --rule-soft:#EDF0F4;
+  --muted:#5C6878;
+  --sand:#FDF4DC; --sand-line:#E3CE93; --sand-ink:#6B4E12;
+  --calc:#EFF4F1; --calc-ink:#17563C;
+  --warn:#FBF0E2; --warn-ink:#8A4A11;
+  --err:#FBEAE8; --err-ink:#8E2A22;
+  --ok:#E9F2EC; --ok-ink:#17563C;
+  --shadow:0 1px 0 rgba(22,32,46,.06), 0 8px 24px -18px rgba(22,32,46,.5);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font:14px/1.45 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;letter-spacing:-.01em;margin:0}
+h1{font-size:21px}
+h2{font-size:18px;color:var(--navy);margin:0 0 4px}
+h3{font-size:15px;margin:26px 0 8px;color:var(--navy)}
+.sub{color:var(--muted);font-size:12.5px;line-height:1.5;max-width:100ch}
+a{color:var(--navy)}
+
+/* ---------- каркас ---------- */
+header{
+  position:sticky;top:0;z-index:40;background:var(--navy);color:#fff;
+  padding:10px 20px;display:flex;gap:22px;align-items:center;flex-wrap:wrap;
+  border-bottom:3px solid #142647;
+}
+header .brand{font-family:Georgia,serif;font-size:15px;letter-spacing:.01em;white-space:nowrap}
+header .kpi{display:flex;gap:18px;flex-wrap:wrap;margin-left:auto;align-items:center}
+.kpi b{font-family:Georgia,serif;font-size:20px;font-weight:600;display:block;line-height:1.1}
+.kpi span{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;opacity:.72}
+.kpi .cell{text-align:right}
+.tools{display:flex;gap:6px;flex-wrap:wrap}
+button{
+  font:inherit;font-size:12.5px;padding:6px 11px;border-radius:3px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;
+}
+button:hover{background:rgba(255,255,255,.12)}
+button.primary{background:#fff;color:var(--navy);border-color:#fff;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #C8A24A;outline-offset:1px}
+
+.wrap{display:flex;align-items:flex-start}
+nav{
+  position:sticky;top:56px;flex:0 0 232px;padding:20px 0 40px;
+  border-right:1px solid var(--rule);min-height:calc(100vh - 56px);background:var(--paper);
+}
+nav a{
+  display:block;padding:9px 20px;color:var(--ink);text-decoration:none;font-size:13.5px;
+  border-left:3px solid transparent;
+}
+nav a:hover{background:var(--navy-soft)}
+nav a.on{border-left-color:var(--navy);background:var(--navy-soft);font-weight:600}
+nav .navnum{color:var(--muted);font-size:11px;margin-right:8px;font-variant-numeric:tabular-nums}
+nav .status{margin:18px 20px 0;padding-top:14px;border-top:1px solid var(--rule);font-size:11.5px;color:var(--muted)}
+main{flex:1;min-width:0;padding:24px 26px 90px;max-width:1500px}
+section{display:none}
+section.on{display:block}
+
+/* ---------- таблицы ---------- */
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:4px;box-shadow:var(--shadow);padding:16px 18px;margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:13px}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--panel)}
+.scroll table{font-size:12px}
+.scroll input[type=number]{min-width:62px}
+.scroll input[type=text]{min-width:150px}
+th,td{border:1px solid var(--rule-soft);padding:5px 7px;text-align:left;vertical-align:middle}
+thead th{
+  background:var(--navy);color:#fff;font-weight:600;font-size:11px;line-height:1.25;
+  position:sticky;top:0;z-index:5;border-color:#2C4B7E;vertical-align:bottom;
+}
+thead th.grp{background:#2C4B7E;text-align:center;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase}
+tbody tr:nth-child(even) td{background:#FCFCFB}
+td.num,th.num{text-align:right}
+tr.total td{background:var(--navy-soft)!important;font-weight:600;border-top:2px solid var(--navy)}
+td.name{min-width:230px}
+.lbl{width:46%;padding-right:14px}
+.hint{color:var(--muted);font-size:11.5px;line-height:1.4}
+
+/* ---------- поля ---------- */
+input,select{
+  font:inherit;font-size:13px;font-variant-numeric:tabular-nums;
+  border:1px solid var(--sand-line);background:var(--sand);color:var(--sand-ink);
+  border-radius:2px;padding:4px 6px;width:100%;
+}
+input[type=number]{text-align:right}
+select{background-image:none}
+.cell-in{padding:2px}
+.calc{background:var(--calc);color:var(--calc-ink);font-weight:600;text-align:right;white-space:nowrap}
+.res{font-family:Georgia,serif;font-size:17px}
+
+.chip{display:inline-block;padding:2px 8px;border-radius:11px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.chip.ok{background:var(--ok);color:var(--ok-ink)}
+.chip.warn{background:var(--warn);color:var(--warn-ink)}
+.chip.err{background:var(--err);color:var(--err-ink)}
+.chip.na{background:#EFF1F4;color:var(--muted)}
+
+/* ---------- подпись формулы: фирменный элемент ---------- */
+.f{cursor:help;border-bottom:1px dotted rgba(23,86,60,.55)}
+.fx{
+  display:none;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  font-size:10.5px;line-height:1.5;color:var(--muted);
+  background:#F7F8F6;border-left:2px solid var(--calc-ink);
+  padding:3px 7px;margin-top:3px;white-space:pre-wrap;text-align:left;font-weight:400;
+}
+body.showf .fx{display:block}
+.fbar{
+  display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  background:var(--calc);border:1px solid #CFDDD5;border-radius:4px;padding:8px 12px;margin:10px 0 0;
+  font-size:12.5px;color:var(--calc-ink)
+}
+.fbar label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.fbar input[type=checkbox]{width:auto;background:none;border:none}
+
+.note{border-left:3px solid var(--sand-line);background:#FDFBF4;padding:9px 13px;margin:14px 0;font-size:12.5px;line-height:1.55;color:#4A4534}
+.miss{border-left:3px solid var(--warn-ink);background:var(--warn);padding:9px 13px;margin:12px 0;font-size:12.5px;color:var(--warn-ink)}
+.miss ul{margin:5px 0 0 18px;padding:0}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin:6px 0 0}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+@media print{
+  header,nav,.tools,.fbar{display:none!important}
+  body{background:#fff;font-size:9px}
+  section{display:block!important;page-break-before:always}
+  section:first-of-type{page-break-before:auto}
+  main{padding:0;max-width:none}
+  .card{box-shadow:none;page-break-inside:avoid}
+  .fx{display:block}
+}
+@media (prefers-reduced-motion:no-preference){
+  section.on{animation:in .18s ease-out}
+  @keyframes in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+}
+@media (max-width:900px){
+  .wrap{flex-direction:column}
+  nav{position:static;flex:none;width:100%;min-height:0;border-right:0;border-bottom:1px solid var(--rule);display:flex;flex-wrap:wrap}
+  nav .status{display:none}
+  main{padding:16px 12px 60px}
+}
+</style>
+
+<header>
+  <div class="brand">Численность службы снабжения</div>
+  <div class="tools">
+    <button onclick="saveJson()">Сохранить в файл</button>
+    <button onclick="document.getElementById('fj').click()">Загрузить из файла</button>
+    <input type="file" id="fj" accept=".json" style="display:none" onchange="loadJson(this)">
+    <button onclick="exportCsv()">Выгрузить CSV</button>
+    <button onclick="window.print()">Печать</button>
+    <button class="primary" onclick="demo()">Кейс из доклада: 3 млрд ₽, служба 5 человек</button>
+    <button onclick="if(confirm('Очистить все введённые данные?')){state=blank();render()}">Очистить</button>
+  </div>
+  <div class="kpi">
+    <div class="cell"><b id="kOp">0,00</b><span>Операционные</span></div>
+    <div class="cell"><b id="kSt">0,00</b><span>Стратегические</span></div>
+    <div class="cell"><b id="kMg">0</b><span>Руководство</span></div>
+    <div class="cell"><b id="kTot">0</b><span>Целевая численность</span></div>
+  </div>
+</header>
+
+<div class="wrap">
+<nav>
+  <a href="#" class="on" data-t="s1"><span class="navnum">1</span>Данные компании</a>
+  <a href="#" data-t="s2"><span class="navnum">2</span>Операционные закупки</a>
+  <a href="#" data-t="s3"><span class="navnum">3</span>Стратегические закупки</a>
+  <a href="#" data-t="s4"><span class="navnum">4</span>Коэффициенты</a>
+  <a href="#" data-t="s5"><span class="navnum">5</span>Итог</a>
+  <div class="status" id="navStatus"></div>
+</nav>
+
+<main>
+<div class="fbar">
+  <label><input type="checkbox" id="fToggle" onchange="document.body.classList.toggle('showf',this.checked)"> Показывать формулы под каждым числом</label>
+  <span class="hint" style="color:inherit">Расчёт, который нельзя проверить, для защиты штата бесполезен. При печати формулы выводятся всегда.</span>
+</div>
+
+<!-- ============ 1 ============ -->
+<section id="s1" class="on">
+  <h2>Данные компании</h2>
+  <p class="sub">Единственный лист с профилем организации. Оба расчётных раздела берут данные отсюда. Заполняйте песочные поля, зелёные считаются сами.</p>
+  <div class="legend">
+    <span><i style="background:var(--sand);border:1px solid var(--sand-line)"></i>заполняете вы</span>
+    <span><i style="background:var(--calc)"></i>считается автоматически</span>
+  </div>
+  <div id="c1"></div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2">
+  <h2>Операционные закупки</h2>
+  <p class="sub">Нормы времени задаются пооперационно, сложность подтягивается из матрицы категорий взвешенно по объёму драйверов. Заполняете два шага: категории и объёмы драйверов, затем нормы операций.</p>
+  <div id="c2"></div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3">
+  <h2>Стратегические закупки</h2>
+  <p class="sub">Проектная и аналитическая нагрузка в разрезе категорий. Названия категорий и класс по Краличу подтягиваются из операционного раздела.</p>
+  <div id="c3"></div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4">
+  <h2>Коэффициенты</h2>
+  <p class="sub">Методологические множители, а не данные вашей компании. Значения можно менять под свою практику, расчёт подхватит их сразу.</p>
+  <div id="c4"></div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5">
+  <h2>Итог</h2>
+  <p class="sub">Операции и категории учитываются одновременно. Численность, роли, самые ёмкие категории и диапазон достоверности считаются автоматически.</p>
+  <div id="c5"></div>
+</section>
+</main>
+</div>
+
+<script>
+"use strict";
+/* ================= справочники ================= */
+const F1=[["Ручное ведение, таблицы и электронная почта",1.30],["Базовый учёт в системе управления ресурсами предприятия",1.10],["Сквозной процесс от заявки до оплаты в единой системе",0.90],["Электронная торговая площадка и электронный документооборот",0.75],["Автоматические сценарии и помощники на основе искусственного интеллекта",0.65]];
+const F2=[["Низкое: дубли, разнородные наименования, ручные правки",1.25],["Среднее: часть справочников упорядочена",1.10],["Высокое: единые правила и регулярная чистка",1.00],["Централизованное управление справочными данными",0.90]];
+const F3=[["Децентрализованная: закупки на каждой площадке",1.20],["Гибридная: часть категорий централизована",1.10],["Централизованная",0.95],["Центр компетенций задаёт правила, площадки исполняют",0.90],["Общий центр обслуживания плюс центр компетенций",0.85]];
+const F4=[["Одна площадка, одно юридическое лицо",1.00],["Несколько площадок в одной стране",1.10],["Несколько стран",1.20],["Глобальные операции и трансграничная логистика",1.30]];
+const F5=[["Стабильный спрос, планирование на год",1.00],["Умеренные колебания, планирование на квартал",1.05],["Переменный спрос, частые корректировки плана",1.10],["Высокая изменчивость и постоянные срочные заявки",1.25]];
+const FACT=[
+ {t:"Уровень автоматизации закупочных процессов",o:F1,h:"Чем меньше ручного ввода, тем ниже коэффициент"},
+ {t:"Качество справочных данных о номенклатуре и поставщиках",o:F2,h:"Дубли в справочнике это скрытые часы"},
+ {t:"Организационная модель службы снабжения",o:F3,h:""},
+ {t:"География и структура бизнеса",o:F4,h:""},
+ {t:"Стабильность спроса и горизонт планирования",o:F5,h:""}];
+const KRAL=[["Некритичные закупки: низкий риск, малые суммы",0.70,"Крепёж, хозтовары, канцелярия"],
+ ["Основные закупки: низкий риск, большие суммы",1.00,"Базовый прокат, стандартные материалы"],
+ ["Проблемные закупки: высокий риск, малые суммы",1.30,"Спецхимия, редкие ЗИП"],
+ ["Стратегические закупки: высокий риск, большие суммы",1.60,"Ключевые комплектующие, кооперация"],
+ ["Критические закупки: единственный поставщик или монополия",2.20,"Монополист, безальтернативная поставка"]];
+const BENCH=[["Стоимость функции закупок, доля от объёма: лучшие в классе",0.0059,"The Hackett Group, 2016"],
+ ["Стоимость функции закупок, доля от объёма: типичная группа",0.0072,"The Hackett Group, 2016"],
+ ["Стоимость функции закупок: медиана сопоставимых организаций",0.0160,"APQC / Казначейство Новой Зеландии"],
+ ["Стоимость функции закупок: медиана всех участников сравнения",0.0185,"APQC, там же"]];
+
+const CATS=["Сырьё и основные материалы","Вспомогательные материалы","Комплектующие и узлы","Кооперация и переработка на стороне","Крепёж и расходные материалы","Инструмент и технологическая оснастка","Технологическое оборудование (капитальные закупки)","Запасные части и ремонтно-эксплуатационные нужды","Подрядные работы и промышленный сервис","Энергоресурсы и топливо","Транспортно-логистические услуги","Упаковка и тара","Спецодежда и средства индивидуальной защиты","Хозяйственные товары и офисное обеспечение","Информационные технологии, лицензии и связь","Профессиональные и консультационные услуги","Аренда, содержание и эксплуатация зданий","Химическая продукция и технические жидкости","Строительство и капитальный ремонт","Прочие категории"];
+
+const DRV_OP=[["Заявки","шт./год"],["Запросы цен","шт./год"],["Заказы","шт./год"],["Строки заказов","шт./год"],["Договоры","шт./год"],["Поставки","шт./год"],["Претензии","шт./год"],["Обращения","шт./год"],["Импортные поставки","шт./год"],["Партии входного контроля","шт./год"],["Согласования замен","шт./год"],["Позиции номенклатуры","поз."],["Поставщики","пост."]];
+const OPS=[
+ ["Приём и разбор заявок от внутренних заказчиков",0,0.25,0.30,"ч на 1 заявку. Регистрация, проверка комплектности, маршрутизация"],
+ ["Уточнение потребности и технических требований с заказчиком",0,0.15,0.60,"ч на 1 заявку. Чем сложнее категория, тем чаще нужен диалог с инициатором"],
+ ["Запрос цен у поставщиков и сравнение предложений",1,0.60,0.50,"ч на 1 запрос цен. Простая конкурентная процедура по прайс-листам"],
+ ["Формирование и размещение заказа поставщику",2,0.22,0.25,"ч на 1 заказ"],
+ ["Контроль сроков поставки и работа с просрочками",2,0.10,0.60,"ч на 1 заказ. На проблемных категориях просрочки съедают кратно больше времени"],
+ ["Обработка одной строки в заказе",3,0.053,0.15,"ч на 1 строку заказа. Главный транзакционный драйвер"],
+ ["Согласование договора или спецификации",4,1.20,0.45,"ч на 1 договор"],
+ ["Приёмка и документарное сопровождение поставки",5,0.30,0.35,"ч на 1 поставку"],
+ ["Сверка документов и взаимодействие с бухгалтерией",5,0.20,0.15,"ч на 1 поставку"],
+ ["Обработка претензий, возвратов и несоответствий",6,2.70,0.55,"ч на 1 претензию"],
+ ["Ответы на запросы заказчиков о статусе заказов",7,0.10,0.30,"ч на 1 обращение"],
+ ["Ведение справочников номенклатуры и поставщиков",11,0.13,0.25,"ч на 1 позицию в год"],
+ ["Работа с запасами, неликвидами и инвентаризация",11,0.08,0.30,"ч на 1 позицию в год"],
+ ["Ведение текущих отношений с поставщиком: сверки, акты, реквизиты",12,3.50,0.70,"ч на 1 поставщика в год"],
+ ["Резерв под дополнительную операцию",null,0,0,"Свободная строка под вашу операцию"],
+ ["Входной контроль: сертификаты, паспорта, декларации соответствия",9,0.35,0.50,"ч на 1 партию"],
+ ["Согласование замены или аналога при дефиците позиции",10,1.00,0.80,"ч на 1 согласование. Работа с конструктором и технологом"]];
+const OUT_OP=[["Внутренняя отчётность и регулярные совещания по текущим закупкам",6],["Ведение и развитие закупочных регламентов и внутренних правил",20],["Прочие нераспределяемые работы",0]];
+
+const DRV_ST=[["Процедуры выбора","шт./год"],["Квалификации поставщиков","шт./год"],["Категорийные стратегии","шт./год"],["Переговорные циклы","шт./год"],["Анализы рынка","шт./год"],["Расчёты целевой цены","шт./год"],["Проекты развития","шт./год"],["Оценки риска","шт./год"],["Сложные договоры","шт./год"],["Контракты в портфеле","шт. в портфеле"],["Обзоры сотрудничества","шт./год"]];
+const WORKS=[
+ ["Подготовка и проведение процедуры выбора поставщика",0,4.4,1.0,"ч на 1 процедуру"],
+ ["Квалификация, проверка и аудит нового поставщика",1,6,1.0,"ч на 1 квалификацию"],
+ ["Разработка и защита категорийной стратегии",2,40,1.0,"ч на 1 стратегию"],
+ ["Переговорный цикл о цене и условиях",3,3,1.0,"ч на 1 цикл"],
+ ["Анализ рынка, ценовых индексов и структуры себестоимости",4,8,0.9,"ч на 1 анализ"],
+ ["Расчёт целевой цены и обоснование справедливой стоимости",5,12,1.0,"ч на 1 расчёт"],
+ ["Проект развития поставщика или локализации поставок",6,60,1.0,"ч на 1 проект"],
+ ["Оценка риска поставщика и меры снижения риска",7,2,1.0,"ч на 1 оценку"],
+ ["Подготовка и согласование сложного договора или рамочного соглашения",8,8,0.8,"ч на 1 договор"],
+ ["Управление контрактным портфелем и контроль исполнения условий",9,1.5,0.6,"ч на 1 контракт в год. Мало зависит от класса категории"],
+ ["Обзор сотрудничества с ключевым поставщиком (QBR)",10,12,1.0,"ч на 1 обзор. Регулярный формат работы со стратегическими поставщиками"]];
+const OUT_ST=[["Планирование экономии, отчётность и защита бюджета закупок",16],["Проекты автоматизации и улучшения закупочных процессов",80],["Участие в цикле планирования продаж и операций (S&OP / IBP)",10],["Нормирование запасов и согласование страхового покрытия",6],["Обучение, аттестация и наставничество в команде",8]];
+const ROLES=[["Специалист по обработке заявок и размещению заказов","op",0.45],["Специалист по сопровождению поставок и документообороту","op",0.35],["Специалист по справочным данным, запасам и отчётности","op",0.20],["Категорийный менеджер","st",0.55],["Специалист по выбору поставщиков и договорной работе","st",0.25],["Специалист по развитию поставщиков и управлению рисками","st",0.20]];
+
+/* ================= состояние ================= */
+function blank(){
+  return {
+    co:{org:0,staff:0,vol:0,sd:0,si:0,sc:0,managed:0,sites:0,legals:0,
+        mat:[null,null,null,null,null], w:[0.2,0.2,0.2,0.2,0.2],
+        fund:1720, meet:0.10, cost:0, payroll:0, span:8,
+        bNom:1972, bVac:160, bSick:72,
+        tgt:[null,null,null,null,null]},
+    cats:CATS.map(n=>({n:n,kr:null,vol:0,dop:new Array(13).fill(0),dst:new Array(11).fill(0)})),
+    ops:OPS.map(o=>({n:o[0],d:o[1],norm:o[2],s:o[3],c:o[4]})),
+    outOp:OUT_OP.map(o=>({n:o[0],cnt:0,norm:o[1]})),
+    works:WORKS.map(o=>({n:o[0],d:o[1],norm:o[2],s:o[3],c:o[4]})),
+    outSt:OUT_ST.map(o=>({n:o[0],cnt:0,norm:o[1]})),
+    f1:F1.map(x=>x[1]),f2:F2.map(x=>x[1]),f3:F3.map(x=>x[1]),f4:F4.map(x=>x[1]),f5:F5.map(x=>x[1]),
+    kral:KRAL.map(x=>x[1]),
+    roles:ROLES.map(r=>r[2]),
+    tol:0.15, benchTarget:0
+  };
+}
+let state=blank();
+const FT=()=>[state.f1,state.f2,state.f3,state.f4,state.f5];
+
+/* ================= расчёт ================= */
+const sum=a=>a.reduce((x,y)=>x+(+y||0),0);
+const ru=(v,d=2)=>(v===null||v===undefined||isNaN(v))?"—":(+v).toLocaleString("ru-RU",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct=(v,d=1)=>isFinite(v)?(v*100).toLocaleString("ru-RU",{minimumFractionDigits:d,maximumFractionDigits:d})+" %":"—";
+const up=v=>Math.ceil(Math.round(v*1e9)/1e9);
+
+function coefOf(fi){const i=state.co.mat[fi];return i===null||i===undefined?1:FT()[fi][i];}
+function coefTgt(fi){const i=state.co.tgt[fi];return i===null||i===undefined?coefOf(fi):FT()[fi][i];}
+function krOf(ci){const i=state.cats[ci].kr;return i===null||i===undefined?1:state.kral[i];}
+
+function loadK(useTarget){
+  const w=state.co.w, sw=sum(w);
+  if(sw===0) return 1;
+  let acc=0;
+  for(let i=0;i<5;i++){acc+=w[i]*((useTarget?coefTgt(i):coefOf(i))-1);}
+  return 1+acc/sw;
+}
+
+function block(kind){
+  const isOp = kind==="op";
+  const drv = isOp?DRV_OP:DRV_ST;
+  const acts = isOp?state.ops:state.works;
+  const key = isOp?"dop":"dst";
+  const nd = drv.length;
+
+  const base=new Array(nd).fill(0), add=new Array(nd).fill(0);
+  acts.forEach(a=>{ if(a.d===null||a.d===undefined) return; base[a.d]+=(+a.norm||0); add[a.d]+=(+a.norm||0)*(+a.s||0); });
+
+  const catH=state.cats.map((c,i)=>{
+    const E=krOf(i), V=c[key];
+    let b=0,x=0;
+    for(let d=0;d<nd;d++){ b+=base[d]*(+V[d]||0); x+=add[d]*(+V[d]||0); }
+    return b+(E-1)*x;
+  });
+  const catTot=sum(catH);
+
+  const I=new Array(nd).fill(0), EW=new Array(nd).fill(0);
+  state.cats.forEach((c,i)=>{ const E=krOf(i); for(let d=0;d<nd;d++){ const v=+c[key][d]||0; I[d]+=v; EW[d]+=E*v; }});
+  const J=I.map((v,d)=>v===0?1:EW[d]/v);
+
+  const actH=acts.map(a=>{
+    if(a.d===null||a.d===undefined) return 0;
+    return I[a.d]*(+a.norm||0)*(1+(J[a.d]-1)*(+a.s||0));
+  });
+  const actTot=sum(actH);
+
+  const outs=isOp?state.outOp:state.outSt;
+  const outH=outs.map(o=>(+o.cnt||0)*(+o.norm||0));
+  const outTot=sum(outH);
+
+  const K=loadK(false), Fe=feff();
+  const hours=actTot+outTot;
+  const fte=Fe>0?hours*K/Fe:0;
+  const conv = (catTot===0&&actTot===0) ? null : Math.abs(catTot-actTot)<=0.005*Math.max(catTot,actTot);
+  return {base,add,catH,catTot,I,J,actH,actTot,outH,outTot,hours,fte,conv,nd,drv,acts,key};
+}
+function feff(){ return (+state.co.fund||0)*(1-(+state.co.meet||0)); }
+function staffAssumed(){ const c=state.co; if(+c.staff>0) return +c.staff; return (+c.cost>0)?(+c.payroll||0)/(+c.cost):0; }
+
+function model(){
+  const op=block("op"), st=block("st");
+  const K=loadK(false), Kt=loadK(true), Fe=feff();
+  const mgOf=x=>{const sp=+state.co.span||0; return (sp<=0||!(x>0))?0:up(up(x)/sp);};
+  const mg=mgOf(op.fte+st.fte);
+  const total=op.fte+st.fte+mg;
+  const whole=up(total);
+  const cur=staffAssumed();
+  const tgtBody=Fe>0?(op.fte+st.fte)*Kt/K:0;
+  const tgtWhole=(op.fte+st.fte===0)?0:up(tgtBody+mgOf(tgtBody));
+  const managedVol=(+state.co.vol||0)*(+state.co.managed||0);
+  const costFn=whole*(+state.co.cost||0);
+  const share=(+state.co.vol>0)?costFn/(+state.co.vol):0;
+  const t=+state.tol||0;
+  const lo=(op.fte+st.fte===0)?0:up((op.fte+st.fte)*(1-t)+mgOf((op.fte+st.fte)*(1-t)));
+  const hi=(op.fte+st.fte===0)?0:up((op.fte+st.fte)*(1+t)+mgOf((op.fte+st.fte)*(1+t)));
+  return {op,st,K,Kt,Fe,mg,total,whole,cur,tgtWhole,managedVol,costFn,share,lo,hi};
+}
+
+/* ================= отрисовка ================= */
+const el=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function fcell(val,formula,dec=2,cls=""){
+  return `<td class="calc ${cls}">${ru(val,dec)}<div class="fx">${esc(formula)}</div></td>`;
+}
+function fval(val,formula,dec=2){
+  return `<span class="f">${ru(val,dec)}</span><div class="fx">${esc(formula)}</div>`;
+}
+function inp(path,idx,val,step,attrs=""){
+  return `<input type="number" step="${step}" value="${val===0?0:val}" data-p="${path}" data-i="${idx}" ${attrs}>`;
+}
+
+function render(){
+  const m=model();
+  el("kOp").textContent=ru(m.op.fte,2);
+  el("kSt").textContent=ru(m.st.fte,2);
+  el("kMg").textContent=ru(m.mg,0);
+  el("kTot").textContent=ru(m.whole,0);
+  drawCompany(m); drawBlock("op",m); drawBlock("st",m); drawCoef(); drawTotal(m); drawNav(m);
+  bind();
+}
+
+function drawNav(m){
+  const ch=checks(m);
+  el("navStatus").innerHTML=ch.map(c=>`<div style="margin:3px 0">${chip(c.st)} ${esc(c.t)}</div>`).join("");
+}
+function chip(s){
+  const map={ok:["ok","в норме"],na:["na","не заполнено"],err:["err","ошибка"]};
+  const v=map[s]||map.na;
+  return `<span class="chip ${v[0]}">${v[1]}</span>`;
+}
+function checks(m){
+  const c=state.co, s=(+c.sd)+(+c.si)+(+c.sc);
+  const rOp=sum(state.roles.slice(0,3)), rSt=sum(state.roles.slice(3,6));
+  const noKr=state.cats.some(x=>(+x.vol>0)&&(x.kr===null||x.kr===undefined));
+  const anyVol=state.cats.some(x=>+x.vol>0);
+  return [
+   {t:"Доли закупок = 100 %", st: s===0?"na":(Math.abs(s-1)<0.005?"ok":"err")},
+   {t:"Веса зрелости = 100 %", st: Math.abs(sum(c.w)-1)<0.001?"ok":"err"},
+   {t:"Слои операционного блока", st: m.op.conv===null?"na":(m.op.conv?"ok":"err")},
+   {t:"Слои стратегического блока", st: m.st.conv===null?"na":(m.st.conv?"ok":"err")},
+   {t:"Доли ролей внутри блоков", st:(Math.abs(rOp-1)<0.001&&Math.abs(rSt-1)<0.001)?"ok":"err"},
+   {t:"Класс по Краличу у всех категорий", st: !anyVol?"na":(noKr?"err":"ok")},
+   {t:"Фонд времени согласован с балансом", st: fundCheck()}
+  ];
+}
+function fundCheck(){
+  const c=state.co, rec=(+c.bNom||0)-(+c.bVac||0)-(+c.bSick||0);
+  if(rec<=0) return "na";
+  return Math.abs(((+c.fund||0)-rec)/rec)<=0.05?"ok":"err";
+}
+
+/* ---------- 1. Данные компании ---------- */
+function drawCompany(m){
+  const c=state.co, sSum=(+c.sd)+(+c.si)+(+c.sc);
+  const rec=(+c.bNom||0)-(+c.bVac||0)-(+c.bSick||0);
+  const dev=rec>0?((+c.fund||0)-rec)/rec:0;
+  const row=(lbl,ctl,hint="")=>`<tr><td class="lbl">${lbl}</td><td style="width:150px" class="cell-in">${ctl}</td><td class="hint">${hint}</td></tr>`;
+
+  let h=`<div class="card"><h3 style="margin-top:4px">Блок 1. Профиль организации</h3><table>`;
+  h+=row("Среднесписочная численность организации, человек",inp("co.org",0,c.org,"1"));
+  h+=row("Текущая численность службы снабжения, штатных единиц",inp("co.staff",0,c.staff,"0.5"),"Если штат неизвестен, оставьте ноль и заполните блок 3, стоимость и фонд оплаты труда");
+  h+=row("Годовой объём закупок, млн ₽",inp("co.vol",0,c.vol,"1"));
+  h+=row("Доля прямых закупок",inp("co.sd",0,c.sd,"0.01"),"Сырьё, материалы, комплектующие. Доли вводятся как 0,55 для 55 %");
+  h+=row("Доля непрямых закупок",inp("co.si",0,c.si,"0.01"),"Обеспечение деятельности");
+  h+=row("Доля капитальных закупок",inp("co.sc",0,c.sc,"0.01"),"Оборудование, строительство");
+  h+=`<tr><td class="lbl">Проверка: сумма трёх долей</td><td class="calc">${pct(sSum)}<div class="fx">= 0,55 + 0,35 + 0,10 → доля_прямых + доля_непрямых + доля_капитальных</div></td>
+      <td>${sSum===0?'<span class="chip na">доли не заполнены</span>':(Math.abs(sSum-1)<0.005?'<span class="chip ok">сходится</span>':'<span class="chip err">сумма должна быть 100 %</span>')}</td></tr>`;
+  h+=row("Доля объёма закупок под управлением службы снабжения",inp("co.managed",0,c.managed,"0.01"));
+  h+=row("Количество производственных и складских площадок",inp("co.sites",0,c.sites,"1"));
+  h+=row("Количество юридических лиц в контуре закупок",inp("co.legals",0,c.legals,"1"));
+  h+=`</table></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Блок 2. Уровень зрелости закупочной функции</h3>
+  <table><thead><tr><th>Фактор зрелости</th><th style="width:290px">Ваш вариант</th><th class="num" style="width:90px">Коэффициент</th><th class="num" style="width:80px">Вес</th><th>Подсказка</th></tr></thead><tbody>`;
+  FACT.forEach((f,i)=>{
+    let sel=`<select data-p="co.mat" data-i="${i}"><option value="">не выбрано</option>`;
+    f.o.forEach((o,j)=>{sel+=`<option value="${j}" ${c.mat[i]===j?"selected":""}>${esc(o[0])}</option>`;});
+    sel+=`</select>`;
+    h+=`<tr><td>${esc(f.t)}</td><td class="cell-in">${sel}</td>
+        <td class="calc">${ru(coefOf(i),2)}</td>
+        <td class="cell-in">${inp("co.w",i,c.w[i],"0.05")}</td>
+        <td class="hint">${esc(f.h)}</td></tr>`;
+  });
+  const sw=sum(c.w);
+  h+=`<tr class="total"><td colspan="3">Проверка: сумма весов</td><td class="num">${pct(sw)}</td>
+      <td>${Math.abs(sw-1)<0.001?'<span class="chip ok">сходится</span>':'<span class="chip err">должно быть 100 %</span>'}</td></tr></tbody></table>
+  <div class="note">Коэффициенты сводятся в один взвешенным сложением надбавок, а не перемножением. Пять множителей по 1,10 дали бы 1,61, хотя каждый фактор поднимает нагрузку лишь на десятую часть. Взвешенная свёртка даёт честные 1,10. Если вариант не выбран, коэффициент равен 1,00 и фактор нейтрален.</div></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Блок 3. Нормативы рабочего времени и стоимости</h3><table>`;
+  h+=row("Годовой фонд рабочего времени одной штатной единицы, часов",inp("co.fund",0,c.fund,"1"),"Норматив по умолчанию. Замените на свой баланс рабочего времени");
+  h+=row("Доля времени на совещания, обучение и непредвиденные задачи",inp("co.meet",0,c.meet,"0.01"),"Вычитается из фонда, повторно в расчёт не добавляется");
+  h+=row("Полная годовая стоимость одной штатной единицы, млн ₽",inp("co.cost",0,c.cost,"0.1"),"С налогами и накладными, а не оклад");
+  h+=row("Годовой фонд оплаты труда службы снабжения, млн ₽",inp("co.payroll",0,c.payroll,"0.1"),"Заполняется, только если численность в блоке 1 неизвестна");
+  h+=row("Норма управляемости: подчинённых на одного руководителя",inp("co.span",0,c.span,"1"),"0 означает, что отдельный слой руководителей не выделяется: службой управляет директор по закупкам напрямую");
+  h+=`</table></div>`;
+
+  const K=loadK(false);
+  h+=`<div class="card"><h3 style="margin-top:4px">Блок 4. Расчётные величины</h3><table>
+   <tr><td class="lbl">Итоговый коэффициент нагрузки</td><td class="calc" style="width:150px">${fval(K,`K = 1 + Σ(вес × (коэф − 1)) / Σвес\n  = 1 + (${state.co.w.map((w,i)=>ru(w,2)+"×("+ru(coefOf(i),2)+"−1)").join(" + ")}) / ${ru(sum(state.co.w),2)}\n  = ${ru(K,4)}`)}</td><td class="hint">Взвешенная свёртка надбавок пяти факторов зрелости</td></tr>
+   <tr><td class="lbl">Эффективный фонд времени одной штатной единицы, часов в год</td><td class="calc">${fval(feff(),`Ф_эфф = Ф_годовой × (1 − доля на совещания)\n  = ${ru(c.fund,0)} × (1 − ${ru(c.meet,2)}) = ${ru(feff(),1)}`,1)}</td><td class="hint">Из фонда вычитается доля времени на совещания и обучение</td></tr>
+   <tr><td class="lbl">Объём закупок под управлением службы снабжения, млн ₽</td><td class="calc">${fval(m.managedVol,`= объём × доля под управлением = ${ru(c.vol,0)} × ${ru(c.managed,2)} = ${ru(m.managedVol,1)}`,1)}</td><td class="hint"></td></tr>
+   <tr><td class="lbl">Оценка численности по фонду оплаты труда, штатных единиц</td><td class="calc">${fval((+c.cost>0)?(+c.payroll||0)/(+c.cost):0,`= ФОТ / стоимость ШЕ = ${ru(c.payroll,1)} / ${ru(c.cost,2)}`)}</td><td class="hint">Считается, только если задана стоимость штатной единицы</td></tr>
+   <tr><td class="lbl">Принятая текущая численность для сравнения, штатных единиц</td><td class="calc">${fval(m.cur,`= если штат > 0, то штат, иначе оценка по ФОТ = ${ru(m.cur,2)}`)}</td>
+       <td class="hint">${+c.staff>0?"Взято из блока 1, фактический штат":((+c.cost>0&&+c.payroll>0)?"Штат не введён, оценка восстановлена по фонду оплаты труда":"Не определено: заполните штат либо стоимость ШЕ и ФОТ")}</td></tr>
+  </table></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Блок 5. Баланс рабочего времени</h3><table>`;
+  h+=row("Номинальный фонд по производственному календарю, часов",inp("co.bNom",0,c.bNom,"1"),"Сорокачасовая рабочая неделя. Возьмите из производственного календаря на свой год");
+  h+=row("Ежегодный оплачиваемый отпуск, часов",inp("co.bVac",0,c.bVac,"1"),"28 календарных дней это примерно 20 рабочих дней, то есть 160 часов");
+  h+=row("Больничные и прочие невыходы, часов",inp("co.bSick",0,c.bSick,"1"),"В среднем 8–10 рабочих дней в год. Замените на статистику своего кадрового учёта");
+  h+=`<tr><td class="lbl">Рекомендуемый годовой фонд рабочего времени, часов</td><td class="calc">${fval(rec,`= номинальный − отпуск − невыходы = ${ru(c.bNom,0)} − ${ru(c.bVac,0)} − ${ru(c.bSick,0)} = ${ru(rec,0)}`,0)}</td><td class="hint">Сравните с фондом из блока 3</td></tr>
+   <tr><td class="lbl">Отклонение фонда из блока 3 от баланса</td><td class="calc">${pct(dev)}</td>
+   <td>${rec<=0?"":(Math.abs(dev)<=0.05?'<span class="chip ok">фонд согласуется с балансом</span>':'<span class="chip err">разница больше 5 %</span>')}</td></tr></table>
+   <div class="note">Фонд после вычета отпусков и невыходов даёт списочную численность, то есть штатное расписание. Если взять номинальный фонд без вычета невыходов, получится явочная численность, и её придётся дополнительно умножать на коэффициент списочного состава. Нормировщик труда на защите штата спросит про баланс первым делом.</div></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Блок 6. Целевой сценарий: зрелость после улучшений</h3>
+  <table><thead><tr><th>Фактор зрелости</th><th style="width:290px">Целевой вариант</th><th class="num" style="width:90px">Коэффициент</th><th>Подсказка</th></tr></thead><tbody>`;
+  FACT.forEach((f,i)=>{
+    let sel=`<select data-p="co.tgt" data-i="${i}"><option value="">без изменений</option>`;
+    f.o.forEach((o,j)=>{sel+=`<option value="${j}" ${c.tgt[i]===j?"selected":""}>${esc(o[0])}</option>`;});
+    sel+=`</select>`;
+    h+=`<tr><td>${esc(f.t)}</td><td class="cell-in">${sel}</td><td class="calc">${ru(coefTgt(i),2)}</td>
+        <td class="hint">${i===0?"Пустое значение означает: без изменений, берётся текущий уровень из блока 2":""}</td></tr>`;
+  });
+  const Kt=loadK(true);
+  h+=`<tr class="total"><td colspan="2">Целевой коэффициент нагрузки</td><td class="num">${ru(Kt,2)}</td><td class="hint">Эффект в людях и деньгах смотрите в разделе «Итог»</td></tr></tbody></table></div>`;
+  el("c1").innerHTML=h;
+}
+
+/* ---------- 2 и 3. Расчётные блоки ---------- */
+function drawBlock(kind,m){
+  const isOp=kind==="op", b=isOp?m.op:m.st, key=b.key, drv=b.drv, acts=b.acts;
+  const outs=isOp?state.outOp:state.outSt;
+  const pathAct=isOp?"ops":"works", pathOut=isOp?"outOp":"outSt";
+  const grpTx=isOp?["Транзакционные драйверы: количество событий за год","Драйверы поддержания"]:["Транзакционные драйверы: количество работ за год",""];
+  let h="";
+
+  /* шаг 1 */
+  h+=`<h3>Шаг 1. Категории: класс, объём и драйверы нагрузки за год</h3>
+  <div class="scroll"><table><thead>
+  <tr><th class="grp" colspan="${isOp?4:3}">Профиль категории</th>
+      <th class="grp" colspan="${isOp?11:11}">${grpTx[0]}</th>
+      ${isOp?'<th class="grp" colspan="2">Драйверы поддержания</th>':''}
+      <th class="grp" colspan="3">Результат</th></tr>
+  <tr><th style="min-width:190px">Категория закупок</th>
+      <th style="min-width:150px">Класс по Краличу</th>
+      <th class="num">Множ., ×</th>
+      ${isOp?'<th class="num" style="min-width:82px">Объём,<br>млн ₽</th>':''}`;
+  drv.forEach(d=>{h+=`<th class="num" style="min-width:62px">${esc(d[0])}<br><span style="font-weight:400;opacity:.7">${esc(d[1])}</span></th>`;});
+  h+=`<th class="num">Часы/год</th><th class="num">Числ.</th><th class="num">Доля</th></tr></thead><tbody>`;
+
+  state.cats.forEach((c,i)=>{
+    const E=krOf(i);
+    let sel=`<select data-p="cats.kr" data-i="${i}"><option value="">выберите</option>`;
+    KRAL.forEach((k,j)=>{sel+=`<option value="${j}" ${c.kr===j?"selected":""}>${esc(k[0])}</option>`;});
+    sel+=`</select>`;
+    const fte=b.catH[i]*m.K/(m.Fe||1);
+    h+=`<tr><td class="cell-in">${isOp?`<input type="text" value="${esc(c.n)}" data-p="cats.n" data-i="${i}">`:esc(c.n)}</td>
+        <td class="cell-in">${isOp?sel:esc(c.kr===null?"—":KRAL[c.kr][0])}</td>
+        <td class="calc">${ru(E,2)}</td>
+        ${isOp?`<td class="cell-in">${inp("cats.vol",i,c.vol,"1")}</td>`:""}`;
+    for(let d=0;d<drv.length;d++){
+      h+=`<td class="cell-in"><input type="number" step="1" value="${c[key][d]}" data-p="cats.${key}" data-i="${i}" data-j="${d}"></td>`;
+    }
+    h+=fcell(b.catH[i],`Часы = Σ(база_d × V_d) + (E − 1) × Σ(надбавка_d × V_d)\n  E = ${ru(E,2)} (класс по Краличу)\n  = ${ru(b.catH[i],2)} ч/год`,1);
+    h+=`<td class="calc">${ru(fte,2)}</td><td class="calc">${b.catTot?pct(b.catH[i]/b.catTot):"—"}</td></tr>`;
+  });
+  h+=`<tr class="total"><td>ИТОГО по всем категориям</td><td></td><td></td>${isOp?`<td class="num">${ru(sum(state.cats.map(c=>+c.vol||0)),0)}</td>`:""}`;
+  for(let d=0;d<drv.length;d++) h+=`<td class="num">${ru(b.I[d],0)}</td>`;
+  h+=`<td class="num">${ru(b.catTot,1)}</td><td class="num">${ru(b.catTot*m.K/(m.Fe||1),2)}</td><td></td></tr></tbody></table></div>`;
+
+  /* шаг 2 */
+  h+=`<h3>Шаг 2. ${isOp?"Операции":"Работы"}: норма времени, драйвер и чувствительность к сложности категории</h3>
+  <div class="scroll"><table><thead><tr>
+    <th style="min-width:250px">${isOp?"Операция":"Работа"}</th><th style="min-width:150px">Драйвер нагрузки</th>
+    <th class="num">Норма, ч</th><th class="num">Чувстви&shy;тельность</th>
+    <th class="num">Объём драйвера</th><th class="num">Средневзв. множитель</th><th class="num">Часы/год</th><th class="num">Доля</th>
+    <th style="min-width:200px">Что входит в норму</th></tr></thead><tbody>`;
+  acts.forEach((a,i)=>{
+    let sel=`<select data-p="${pathAct}.d" data-i="${i}"><option value="">нет</option>`;
+    drv.forEach((d,j)=>{sel+=`<option value="${j}" ${a.d===j?"selected":""}>${esc(d[0])}</option>`;});
+    sel+=`</select>`;
+    const I=a.d===null?0:b.I[a.d], J=a.d===null?1:b.J[a.d];
+    h+=`<tr><td>${esc(a.n)}</td><td class="cell-in">${sel}</td>
+      <td class="cell-in">${inp(pathAct+".norm",i,a.norm,"0.001")}</td>
+      <td class="cell-in">${inp(pathAct+".s",i,a.s,"0.05")}</td>
+      <td class="calc">${ru(I,0)}</td>
+      <td class="calc">${fval(J,`J = Σ(E_кат × V_кат) / ΣV_кат\n  средневзвешенный множитель сложности по объёму драйвера`,4)}</td>`;
+    h+=fcell(b.actH[i],`Часы = V × норма × (1 + (J − 1) × чувствительность)\n  = ${ru(I,0)} × ${ru(a.norm,3)} × (1 + (${ru(J,4)} − 1) × ${ru(a.s,2)})\n  = ${ru(b.actH[i],2)} ч/год`,1);
+    h+=`<td class="calc">${b.actTot?pct(b.actH[i]/b.actTot):"—"}</td><td class="hint">${esc(a.c)}</td></tr>`;
+  });
+  h+=`<tr class="total"><td colspan="6">ИТОГО трудозатрат по ${isOp?"операциям":"работам"}</td><td class="num">${ru(b.actTot,1)}</td><td colspan="2"></td></tr></tbody></table></div>
+  <div class="note">Чувствительность это доля сложности категории, которая переходит в эту ${isOp?"операцию":"работу"}. Обработка строки заказа почти не зависит от того, металлопрокат это или крепёж, поэтому чувствительность низкая. Работа с претензией зависит сильно, поэтому высокая.</div>`;
+
+  /* шаг 3 */
+  h+=`<h3>Шаг 3. Работы, не распределяемые по категориям</h3>
+  <table><thead><tr><th>Работа</th><th class="num" style="width:130px">Количество в год</th><th class="num" style="width:130px">Норма времени, ч</th><th class="num" style="width:130px">Часы/год</th></tr></thead><tbody>`;
+  outs.forEach((o,i)=>{
+    h+=`<tr><td>${esc(o.n)}</td><td class="cell-in">${inp(pathOut+".cnt",i,o.cnt,"1")}</td>
+        <td class="cell-in">${inp(pathOut+".norm",i,o.norm,"0.5")}</td>
+        <td class="calc">${ru(b.outH[i],1)}</td></tr>`;
+  });
+  h+=`<tr class="total"><td colspan="3">ИТОГО вне категорий</td><td class="num">${ru(b.outTot,1)}</td></tr></tbody></table>`;
+
+  /* итог блока */
+  const conv=b.conv;
+  h+=`<h3>Итог ${isOp?"операционного":"стратегического"} блока</h3><div class="card"><table>
+   <tr><td class="lbl">Трудозатраты по слою ${isOp?"операций":"работ"}, часов в год</td><td class="calc" style="width:150px">${ru(b.actTot,1)}</td>
+       <td rowspan="2">${conv===null?'<span class="chip na">данные ещё не заполнены</span>':(conv?'<span class="chip ok">слои сходятся: расчёт по '+(isOp?"операциям":"работам")+' и по категориям даёт один результат</span>':'<span class="chip err">расхождение: проверьте привязку '+(isOp?"операций":"работ")+' к драйверам</span>')}</td></tr>
+   <tr><td class="lbl">Трудозатраты по слою категорий, часов в год</td><td class="calc">${ru(b.catTot,1)}</td></tr>
+   <tr><td class="lbl">Трудозатраты вне категорий, часов в год</td><td class="calc">${ru(b.outTot,1)}</td><td></td></tr>
+   <tr><td class="lbl">Всего трудозатрат блока, часов в год</td><td class="calc">${fval(b.hours,`= ${ru(b.actTot,1)} + ${ru(b.outTot,1)} = ${ru(b.hours,1)}`,1)}</td><td></td></tr>
+   <tr><td class="lbl">Коэффициент нагрузки</td><td class="calc">${ru(m.K,4)}</td><td class="hint">Из блока 4 раздела «Данные компании»</td></tr>
+   <tr><td class="lbl">Эффективный фонд времени, часов</td><td class="calc">${ru(m.Fe,1)}</td><td></td></tr>
+   <tr class="total"><td>ЧИСЛЕННОСТЬ БЛОКА, штатных единиц</td><td class="num res">${fval(b.fte,`Ч = часы × K / Ф_эфф = ${ru(b.hours,1)} × ${ru(m.K,4)} / ${ru(m.Fe,1)} = ${ru(b.fte,4)}`,2)}</td><td></td></tr>
+  </table></div>`;
+
+  el(isOp?"c2":"c3").innerHTML=h;
+}
+
+/* ---------- 4. Коэффициенты ---------- */
+function drawCoef(){
+  let h="";
+  const tbl=(title,rows,path)=>{
+    let t=`<div class="card"><h3 style="margin-top:4px">${title}</h3><table><thead><tr><th>Вариант</th><th class="num" style="width:120px">Коэффициент</th><th style="width:34%">Комментарий</th></tr></thead><tbody>`;
+    rows.forEach((r,i)=>{
+      t+=`<tr><td>${esc(r[0])}</td><td class="cell-in">${inp(path,i,state[path][i],"0.01")}</td><td class="hint">${esc(r[2]||"")}</td></tr>`;
+    });
+    return t+"</tbody></table></div>";
+  };
+  h+=tbl("1. Уровень автоматизации закупочных процессов",F1.map(x=>[x[0],x[1],x[0].includes("искусственного")?"McKinsey: рост эффективности функции на 25–40 %":(x[1]===1.30?"Каждая операция дороже на треть":"")]),"f1");
+  h+=tbl("2. Качество справочных данных о номенклатуре и поставщиках",F2,"f2");
+  h+=tbl("3. Организационная модель службы снабжения",F3,"f3");
+  h+=tbl("4. География и структура бизнеса",F4,"f4");
+  h+=tbl("5. Стабильность спроса и горизонт планирования",F5,"f5");
+  h+=tbl("6. Класс категории по матрице Кралича",KRAL,"kral");
+
+  h+=`<div class="card"><h3 style="margin-top:4px">7. Внешние ориентиры для проверки результата</h3>
+  <table><thead><tr><th>Показатель</th><th class="num" style="width:120px">Значение</th><th style="width:34%">Источник</th></tr></thead><tbody>`;
+  BENCH.forEach(b=>{h+=`<tr><td>${esc(b[0])}</td><td class="num">${pct(b[1],2)}</td><td class="hint">${esc(b[2])}</td></tr>`;});
+  h+=`</tbody></table>
+  <table style="margin-top:10px"><tr><td class="lbl">Ваш целевой ориентир стоимости функции, доля от объёма закупок</td>
+  <td style="width:150px" class="cell-in">${inp("benchTarget",0,state.benchTarget,"0.001")}</td>
+  <td class="hint">Ориентиры приведены как внешняя точка сверки. Свой ориентир задайте здесь, например 0,016 для 1,6 %</td></tr></table></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">8. Распределение по ролям</h3>
+  <table><thead><tr><th>Роль</th><th style="width:110px">Блок</th><th class="num" style="width:120px">Доля в блоке</th></tr></thead><tbody>`;
+  ROLES.forEach((r,i)=>{h+=`<tr><td>${esc(r[0])}</td><td class="hint">${r[1]==="op"?"операционный":"стратегический"}</td><td class="cell-in">${inp("roles",i,state.roles[i],"0.05")}</td></tr>`;});
+  const rOp=sum(state.roles.slice(0,3)), rSt=sum(state.roles.slice(3,6));
+  h+=`<tr class="total"><td colspan="2">Сумма долей: операционный ${pct(rOp)}, стратегический ${pct(rSt)}</td>
+      <td>${(Math.abs(rOp-1)<0.001&&Math.abs(rSt-1)<0.001)?'<span class="chip ok">в норме</span>':'<span class="chip err">по 100 % в каждом блоке</span>'}</td></tr></tbody></table></div>`;
+  el("c4").innerHTML=h;
+}
+
+/* ---------- 5. Итог ---------- */
+function drawTotal(m){
+  const c=state.co;
+  const miss=[];
+  if(!(+c.vol>0)) miss.push("годовой объём закупок");
+  if(!(+c.cost>0)) miss.push("полная годовая стоимость штатной единицы");
+  if(!(+c.org>0)) miss.push("численность организации");
+  if(m.cur<=0) miss.push("текущая численность службы либо стоимость ШЕ и фонд оплаты труда");
+  if(!state.cats.some(x=>sum(x.dop)>0)) miss.push("объёмы драйверов операционного блока");
+  if(!state.cats.some(x=>sum(x.dst)>0)) miss.push("объёмы драйверов стратегического блока");
+
+  let h=`<div class="card"><h3 style="margin-top:4px">Главный результат</h3><table>
+   <tr><td class="lbl">Операционные закупки, штатных единиц</td><td class="calc res" style="width:170px">${ru(m.op.fte,2)}</td><td class="hint">Расчёт в разделе 2</td></tr>
+   <tr><td class="lbl">Стратегические закупки, штатных единиц</td><td class="calc res">${ru(m.st.fte,2)}</td><td class="hint">Расчёт в разделе 3</td></tr>
+   <tr><td class="lbl">Руководство и администрирование, штатных единиц</td><td class="calc res">${fval(m.mg,((+c.span||0)<=0?`Норма управляемости равна нулю: отдельный слой руководителей не выделяется.\n  Службой управляет директор по закупкам напрямую = 0`:`= ВВЕРХ( ВВЕРХ(Ч_опер + Ч_страт) / норма управляемости )\n  = ВВЕРХ( ВВЕРХ(${ru(m.op.fte,2)} + ${ru(m.st.fte,2)}) / ${ru(c.span,0)} ) = ${ru(m.mg,0)}`),0)}</td><td class="hint">По норме управляемости из блока 3</td></tr>
+   <tr><td class="lbl">ИТОГО расчётная численность, штатных единиц</td><td class="calc res">${ru(m.total,2)}</td><td class="hint">Время на совещания и обучение уже учтено в эффективном фонде</td></tr>
+   <tr class="total"><td>ИТОГО ЦЕЛЕВАЯ ЧИСЛЕННОСТЬ, целых штатных единиц</td><td class="num res" style="font-size:22px">${ru(m.whole,0)}</td><td class="hint">Округление вверх до целой штатной единицы</td></tr>
+  </table></div>`;
+
+  if(miss.length) h+=`<div class="miss"><b>Не заполнено, поэтому часть выводов недоступна:</b><ul>${miss.map(x=>"<li>"+esc(x)+"</li>").join("")}</ul></div>`;
+
+  const diff=m.cur>0?m.whole-m.cur:null;
+  h+=`<div class="card"><h3 style="margin-top:4px">Сравнение с текущим штатом</h3><table>
+   <tr><td class="lbl">Текущая численность, принятая для сравнения</td><td class="calc" style="width:170px">${m.cur>0?ru(m.cur,2):"—"}</td><td class="hint">${+c.staff>0?"фактический штат":"оценка по фонду оплаты труда"}</td></tr>
+   <tr><td class="lbl">Разница между целевой и текущей численностью</td><td class="calc">${diff===null?"—":ru(diff,2)}</td><td class="hint"></td></tr>
+   <tr><td class="lbl">Годовая стоимость разницы, млн ₽</td><td class="calc">${(diff===null||!(+c.cost>0))?"—":ru(diff*(+c.cost),2)}</td><td class="hint">Разница, умноженная на полную стоимость штатной единицы</td></tr>
+  </table>
+  <div class="note">${verdict(m,diff)}</div></div>`;
+
+  const benchChip = m.share===0?'<span class="chip na">не рассчитано</span>' :
+    (+state.benchTarget===0?'<span class="chip na">ориентир не задан</span>' :
+     (m.share<=+state.benchTarget?'<span class="chip ok">в пределах ориентира</span>':'<span class="chip err">выше ориентира</span>'));
+  h+=`<div class="card"><h3 style="margin-top:4px">Проверочные ориентиры</h3><table>
+   <tr><td class="lbl">Объём закупок на одну штатную единицу, млн ₽</td><td class="calc" style="width:170px">${m.total?ru(m.managedVol/m.total,1):"—"}</td><td class="hint">Объём под управлением службы, делённый на расчётную численность</td></tr>
+   <tr><td class="lbl">Доля службы снабжения в численности организации</td><td class="calc">${+c.org>0?pct(m.total/(+c.org),2):"—"}</td><td class="hint"></td></tr>
+   <tr><td class="lbl">Годовая стоимость функции при целевой численности, млн ₽</td><td class="calc">${ru(m.costFn,2)}</td><td class="hint">Расчётная численность × стоимость штатной единицы</td></tr>
+   <tr><td class="lbl">Стоимость функции, доля от объёма закупок</td><td class="calc">${m.share?pct(m.share,3):"—"}</td><td>${benchChip}</td></tr>
+   <tr><td class="lbl">Ваш целевой ориентир</td><td class="calc">${+state.benchTarget?pct(+state.benchTarget,2):"—"}</td><td class="hint">Задаётся в разделе «Коэффициенты», блок 7</td></tr>
+  </table></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Распределение по ролям</h3>
+   <table><thead><tr><th>Роль</th><th class="num" style="width:150px">Численность, шт. ед.</th><th class="num" style="width:110px">Доля в блоке</th></tr></thead><tbody>`;
+  let rsum=0;
+  ROLES.forEach((r,i)=>{
+    const v=(r[1]==="op"?m.op.fte:m.st.fte)*state.roles[i]; rsum+=v;
+    h+=`<tr><td>${esc(r[0])}</td><td class="calc">${ru(v,2)}</td><td class="num">${pct(state.roles[i])}</td></tr>`;
+  });
+  rsum+=m.mg;
+  h+=`<tr><td>Руководство и администрирование</td><td class="calc">${ru(m.mg,2)}</td><td class="num">—</td></tr>
+   <tr class="total"><td>ИТОГО по ролям, штатных единиц</td><td class="num">${ru(rsum,2)}</td>
+   <td>${Math.abs(rsum-m.total)<0.05?'<span class="chip ok">сходится</span>':'<span class="chip err">расхождение</span>'}</td></tr></tbody></table></div>`;
+
+  const top=(b,label)=>{
+    const idx=state.cats.map((c,i)=>i).sort((a,z)=>b.catH[z]-b.catH[a]).slice(0,3);
+    let t=`<h3 style="margin-top:4px">${label}</h3><table><thead><tr><th>Категория</th><th class="num" style="width:130px">Часов в год</th><th class="num" style="width:110px">Доля</th></tr></thead><tbody>`;
+    idx.forEach(i=>{ t+=`<tr><td>${esc(state.cats[i].n)}</td><td class="calc">${ru(b.catH[i],1)}</td><td class="num">${b.catTot?pct(b.catH[i]/b.catTot):"—"}</td></tr>`; });
+    const share3=b.catTot?idx.reduce((s,i)=>s+b.catH[i],0)/b.catTot:0;
+    t+=`<tr class="total"><td>Доля трёх категорий в блоке</td><td></td><td class="num">${b.catTot?pct(share3):"—"}</td></tr></tbody></table>`;
+    return t;
+  };
+  h+=`<div class="card">${top(m.op,"Самые ёмкие категории операционного блока")}${top(m.st,"Самые ёмкие категории стратегического блока")}
+   <div class="note">Если на три категории приходится больше 60 % нагрузки блока, наведение порядка начинают именно с них: рамочные договоры, каталоги, электронные заказы.</div></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Сценарий целевой зрелости</h3><table>
+   <tr><td class="lbl">Целевой коэффициент нагрузки</td><td class="calc" style="width:170px">${ru(m.Kt,4)}</td><td class="hint">Если блок 6 не заполнен, целевой коэффициент равен текущему и сценарий нейтрален</td></tr>
+   <tr><td class="lbl">Целевая численность при новой зрелости, целых штатных единиц</td><td class="calc res">${ru(m.tgtWhole,0)}</td><td class="hint"></td></tr>
+   <tr><td class="lbl">Освобождается штатных единиц</td><td class="calc res">${(m.whole===0||m.tgtWhole===0)?"—":ru(m.whole-m.tgtWhole,0)}</td><td class="hint"></td></tr>
+   <tr class="total"><td>Экономия в год, млн ₽</td><td class="num res">${(m.whole===0||m.tgtWhole===0||!(+c.cost>0))?"—":ru((m.whole-m.tgtWhole)*(+c.cost),2)}</td>
+   <td class="hint">Экономия равна разнице целевых численностей, умноженной на полную стоимость штатной единицы</td></tr>
+  </table></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Диапазон достоверности результата</h3><table>
+   <tr><td class="lbl">Допуск на точность норм времени, ±</td><td style="width:150px" class="cell-in">${inp("tol",0,state.tol,"0.01")}</td>
+       <td class="hint">До хронометража нормы точны примерно на ±15–20 %, после трёх-пяти замеров на операцию на ±5–10 %</td></tr>
+   <tr><td class="lbl">Оптимистичная оценка (нормы завышены)</td><td class="calc">${ru(m.lo,0)}</td><td class="hint"></td></tr>
+   <tr><td class="lbl">Базовая оценка</td><td class="calc res">${ru(m.whole,0)}</td><td class="hint"></td></tr>
+   <tr><td class="lbl">Пессимистичная оценка (нормы занижены)</td><td class="calc">${ru(m.hi,0)}</td><td class="hint"></td></tr>
+  </table><div class="note">${
+    (m.total===0||m.cur<=0)?"Диапазон показывает, насколько результат зависит от точности норм. Заполните модель и текущий штат, чтобы увидеть вывод."
+    :((m.cur>=m.lo&&m.cur<=m.hi)?"Текущий штат находится внутри диапазона достоверности. Разница с расчётом меньше погрешности норм: сначала подтвердите нормы хронометражем, потом делайте оргвыводы."
+      :"Текущий штат вне диапазона достоверности. Разница больше погрешности норм: результат можно защищать даже до хронометража.")
+  }</div></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Самопроверка модели</h3><table><tbody>`;
+  checks(m).forEach(c=>{h+=`<tr><td class="lbl">${esc(c.t)}</td><td style="width:170px">${chip(c.st)}</td><td class="hint"></td></tr>`;});
+  h+=`</tbody></table><div class="note">Если во всех строках стоит «в норме», модель заполнена корректно и результат можно защищать. «Не заполнено» означает, что проверять пока нечего.</div></div>`;
+
+  h+=`<div class="card"><h3 style="margin-top:4px">Как пользоваться</h3>
+  <ol class="sub" style="line-height:1.7;padding-left:20px">
+   <li>Раздел «Данные компании»: профиль организации, зрелость процессов, фонд рабочего времени и стоимость штатной единицы.</li>
+   <li>Раздел «Операционные закупки», шаг 1: впишите свои категории, класс по Краличу и объёмы драйверов за год.</li>
+   <li>Там же, шаг 2: проверьте нормы времени и чувствительность операций под свой хронометраж.</li>
+   <li>Раздел «Стратегические закупки»: количество проектных работ по категориям, названия категорий подтянутся автоматически.</li>
+   <li>Вернитесь сюда: численность, роли и самые ёмкие категории считаются автоматически.</li>
+  </ol>
+  <div class="note">Нормы времени в расчётных разделах это значения по умолчанию. Прежде чем нести цифру директору, подтвердите их фотографией рабочего дня хотя бы по трём операциям с наибольшей долей.</div></div>`;
+  el("c5").innerHTML=h;
+}
+function verdict(m,diff){
+  if(m.total===0) return "Данные ещё не заполнены. Начните с раздела «Данные компании», затем внесите категории и драйверы.";
+  if(m.cur<=0) return "Расчётная потребность "+ru(m.whole,0)+" шт. ед. Укажите фактический штат, чтобы увидеть разницу.";
+  if(diff>0) return "Дефицит "+ru(diff,1)+" шт. ед. при текущей нагрузке. Целевая численность "+ru(m.whole,0)+" шт. ед.";
+  if(diff<0) return "Избыток "+ru(Math.abs(diff),1)+" шт. ед. относительно расчётной нагрузки. Целевая численность "+ru(m.whole,0)+" шт. ед.";
+  return "Численность соответствует расчётной нагрузке.";
+}
+
+/* ================= ввод ================= */
+function setPath(p,i,j,val){
+  const seg=p.split(".");
+  if(seg[0]==="co"){
+    if(Array.isArray(state.co[seg[1]])) state.co[seg[1]][i]=val; else state.co[seg[1]]=val;
+  } else if(seg[0]==="cats"){
+    if(seg[1]==="dop"||seg[1]==="dst") state.cats[i][seg[1]][j]=val;
+    else state.cats[i][seg[1]]=val;
+  } else if(seg.length===2){ state[seg[0]][i][seg[1]]=val; }
+  else { if(Array.isArray(state[seg[0]])) state[seg[0]][i]=val; else state[seg[0]]=val; }
+}
+function bind(){
+  document.querySelectorAll("[data-p]").forEach(node=>{
+    node.oninput=node.onchange=e=>{
+      const p=node.dataset.p, i=+node.dataset.i, j=node.dataset.j===undefined?null:+node.dataset.j;
+      let v;
+      if(node.tagName==="SELECT") v = node.value===""?null:+node.value;
+      else if(node.type==="number") v = node.value===""?0:+node.value;
+      else v = node.value;
+      setPath(p,i,j,v);
+      const sec=node.closest("section").id, pos=node.selectionStart;
+      const sig=p+"|"+i+"|"+j;
+      render();
+      const back=document.querySelector(`[data-p="${p}"][data-i="${i}"]`+(j===null?"":`[data-j="${j}"]`));
+      if(back){ back.focus(); try{ if(back.type==="text"||back.type==="number") back.setSelectionRange(pos,pos);}catch(_){} }
+    };
+  });
+}
+document.querySelectorAll("nav a").forEach(a=>{
+  a.onclick=e=>{
+    e.preventDefault();
+    document.querySelectorAll("nav a").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll("section").forEach(x=>x.classList.remove("on"));
+    a.classList.add("on"); el(a.dataset.t).classList.add("on");
+    window.scrollTo(0,0);
+  };
+});
+
+/* ================= файлы ================= */
+function saveJson(){
+  const blob=new Blob([JSON.stringify(state,null,1)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="сценарий-численность-"+new Date().toISOString().slice(0,10)+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+}
+function loadJson(input){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const d=JSON.parse(r.result); state=Object.assign(blank(),d); render(); }
+                 catch(err){ alert("Файл не читается как сценарий. Проверьте, что это файл, сохранённый этим калькулятором."); } };
+  r.readAsText(f); input.value="";
+}
+function exportCsv(){
+  const m=model(), q=s=>'"'+String(s).replace(/"/g,'""')+'"', L=[];
+  L.push(["Показатель","Значение"].map(q).join(";"));
+  [["Операционные закупки, шт. ед.",ru(m.op.fte,2)],["Стратегические закупки, шт. ед.",ru(m.st.fte,2)],
+   ["Руководство, шт. ед.",ru(m.mg,0)],["Итого расчётная, шт. ед.",ru(m.total,2)],
+   ["Итого целевая, целых шт. ед.",ru(m.whole,0)],["Текущая численность",ru(m.cur,2)],
+   ["Коэффициент нагрузки",ru(m.K,4)],["Эффективный фонд, ч",ru(m.Fe,1)],
+   ["Стоимость функции, млн руб.",ru(m.costFn,2)],["Доля от объёма закупок",pct(m.share,3)]
+  ].forEach(r=>L.push(r.map(q).join(";")));
+  L.push("");
+  L.push(["Категория","Класс по Краличу","Множитель","Объём, млн руб.","Часы операционные","Часы стратегические"].map(q).join(";"));
+  state.cats.forEach((c,i)=>{
+    L.push([c.n, c.kr===null?"":KRAL[c.kr][0], ru(krOf(i),2), ru(c.vol,0), ru(m.op.catH[i],1), ru(m.st.catH[i],1)].map(q).join(";"));
+  });
+  const blob=new Blob(["\ufeff"+L.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="численность-снабжения.csv"; a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ================= контрольный пример ================= */
+function demo(){
+  const s=blank(), c=s.co;
+  Object.assign(c,{org:900,staff:5,vol:3000,sd:0.62,si:0.28,sc:0.10,managed:1,sites:2,legals:1,
+    fund:1720,meet:0.10,cost:2.4,payroll:0,span:0});
+  c.mat=[1,1,1,1,2]; c.tgt=[3,2,null,null,null];
+  s.benchTarget=0.0072;
+  const imp=s.ops.find(o=>o.n.indexOf("\u0418\u043c\u043f\u043e\u0440\u0442")===0||o.n.indexOf("\u0420\u0435\u0437\u0435\u0440\u0432")===0);
+  if(imp){ imp.n="\u041e\u0444\u043e\u0440\u043c\u043b\u0435\u043d\u0438\u0435 \u0438\u043c\u043f\u043e\u0440\u0442\u043d\u043e\u0439 \u043f\u043e\u0441\u0442\u0430\u0432\u043a\u0438"; }
+  const set=(i,kr,vol,dop,dst)=>{ s.cats[i].kr=kr; s.cats[i].vol=vol; s.cats[i].dop=dop; s.cats[i].dst=dst; };
+  set(0,3,1100,[726,184,540,2150,23,523,26,212,26,193,15,657,21],[11,4,0,9,3,3,0,4,4,16,3]);
+  set(2,2,620,[615,150,426,1662,17,381,21,192,9,150,11,519,17],[8,6,0,8,2,2,1,6,4,12,2]);
+  set(7,1,340,[780,126,507,1326,14,444,18,216,0,126,9,1018,27],[8,5,1,6,2,2,0,5,3,11,2]);
+  set(4,0,60,[420,45,282,1014,5,279,8,96,0,38,3,450,12],[3,2,1,2,1,1,0,2,1,5,0]);
+  set(8,3,430,[261,69,171,312,8,132,14,72,0,15,2,69,18],[9,5,1,7,2,2,1,5,4,11,2]);
+  set(1,1,45,[58,11,37,94,1,33,2,6,0,2,0,59,2],[11,2,0,2,0,0,0,2,0,5,0]);
+  set(3,3,30,[40,8,25,62,1,23,2,4,0,1,0,39,2],[7,2,0,2,1,1,0,2,1,4,0]);
+  set(5,1,41,[55,12,34,86,1,31,2,5,0,2,1,54,3],[10,2,1,2,1,1,0,2,1,5,0]);
+  set(6,3,15,[20,4,12,31,0,11,1,2,0,1,0,20,1],[4,1,1,1,1,1,0,1,0,2,0]);
+  set(9,4,23,[30,6,19,47,1,17,1,3,0,1,0,29,2],[5,1,1,1,1,1,0,1,1,3,0]);
+  set(10,1,34,[45,10,28,70,1,26,2,5,0,1,1,44,2],[8,2,1,2,1,1,0,2,1,4,0]);
+  set(11,1,26,[35,8,22,55,1,20,1,4,0,1,0,34,2],[6,1,1,1,1,1,0,1,1,3,0]);
+  set(12,0,30,[40,8,25,62,1,23,2,4,0,1,0,39,2],[7,2,1,2,1,1,0,2,1,4,0]);
+  set(13,0,49,[65,14,40,101,1,37,2,7,0,2,1,64,3],[11,2,0,2,2,2,0,2,2,6,0]);
+  set(14,2,34,[45,10,28,70,1,26,2,5,0,1,1,44,2],[8,2,1,2,1,1,0,2,1,4,0]);
+  set(15,1,26,[35,8,22,55,1,20,1,4,0,1,0,34,2],[6,1,1,1,1,1,0,1,1,3,0]);
+  set(16,1,23,[30,6,19,47,1,17,1,3,0,1,0,29,2],[5,1,1,1,1,1,0,1,1,3,0]);
+  set(17,2,19,[25,5,16,39,0,14,1,2,0,1,0,25,1],[5,1,1,1,1,1,0,1,1,2,0]);
+  set(18,3,23,[30,6,19,47,1,17,1,3,0,1,0,29,2],[5,1,1,1,1,1,0,1,1,3,0]);
+  set(19,0,34,[45,10,28,70,1,26,2,5,0,1,1,44,2],[8,2,1,2,1,1,0,2,1,4,0]);
+  s.outOp[0].cnt=12; s.outOp[1].cnt=4;
+  s.outSt[0].cnt=4; s.outSt[1].cnt=2; s.outSt[2].cnt=12; s.outSt[3].cnt=4; s.outSt[4].cnt=4;
+  state=s; render();
+}
+render();
+</script>
